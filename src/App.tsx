@@ -4,10 +4,18 @@
  */
 
 import { MainPanel } from "./components/MainPanel";
+import { OverlayWindow } from "./components/OverlayWindow";
 import { WeaponList } from "./components/WeaponList";
 import { AppProvider } from "./store";
 
 export default function App() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const isOverlayWindow = searchParams.get("overlay") === "1";
+
+  if (isOverlayWindow) {
+    return <OverlayWindow />;
+  }
+
   return (
     <AppProvider>
       <main className="min-h-screen bg-[#131823] py-8 px-4 text-white font-sans">

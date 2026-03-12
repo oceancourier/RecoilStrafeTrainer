@@ -3,6 +3,7 @@ export type Direction = "left" | "right" | "down";
 export type WeaponPattern = {
   id: string;
   game: string;
+  name?: string;
   weapon: string;
   rpm: number;
   magSize: number;
@@ -24,8 +25,18 @@ export type TimelineCue = {
   noteType?: string;
 };
 
+export type MonitorBinding =
+  | {
+      kind: "mouse";
+      button: 0 | 1 | 2;
+    }
+  | {
+      kind: "keyboard";
+      code: string;
+    };
+
 export type PlaybackState = {
-  status: "idle" | "countdown" | "playing" | "paused" | "completed";
+  status: "idle" | "monitoring" | "countdown" | "playing";
   currentBullet: number | null;
   currentDirection: Direction | null;
   countdownValue: number | null;
@@ -37,6 +48,7 @@ export const defaultPatterns: WeaponPattern[] = [
   {
     id: "r301",
     game: "Apex Legends",
+    name: "R-301",
     weapon: "R-301",
     rpm: 810,
     magSize: 28,
@@ -49,6 +61,7 @@ export const defaultPatterns: WeaponPattern[] = [
   {
     id: "flatline",
     game: "Apex Legends",
+    name: "Flatline",
     weapon: "Flatline",
     rpm: 600,
     magSize: 30,
@@ -61,6 +74,7 @@ export const defaultPatterns: WeaponPattern[] = [
   {
     id: "r99",
     game: "Apex Legends",
+    name: "R-99",
     weapon: "R-99",
     rpm: 1080,
     magSize: 27,
@@ -73,6 +87,7 @@ export const defaultPatterns: WeaponPattern[] = [
   {
     id: "car",
     game: "Apex Legends",
+    name: "C.A.R.",
     weapon: "C.A.R.",
     rpm: 930,
     magSize: 27,
@@ -83,3 +98,14 @@ export const defaultPatterns: WeaponPattern[] = [
     ],
   }
 ];
+
+export function normalizeWeaponPattern(pattern: WeaponPattern): WeaponPattern {
+  return {
+    ...pattern,
+    name: pattern.name ?? pattern.weapon,
+  };
+}
+
+export function normalizeWeaponPatterns(patterns: WeaponPattern[]): WeaponPattern[] {
+  return patterns.map(normalizeWeaponPattern);
+}
