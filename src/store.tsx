@@ -116,6 +116,8 @@ const audio = new AudioEngine();
 const STORAGE_KEY = "recoil_strafe_trainer_patterns";
 const SELECTED_STORAGE_KEY = "recoil_strafe_trainer_selected";
 const SETTINGS_STORAGE_KEY = "recoil_strafe_trainer_settings";
+const PRESET_VERSION_STORAGE_KEY = "recoil_strafe_trainer_preset_version";
+const DEFAULT_PRESET_VERSION = "2026-03-ak47-release";
 const LEGACY_STORAGE_SUFFIXES = {
   patterns: "_strafe_patterns",
   selected: "_strafe_selected",
@@ -221,6 +223,10 @@ function readStoredSettings() {
   }
 }
 
+function hasCurrentPresetVersion() {
+  return localStorage.getItem(PRESET_VERSION_STORAGE_KEY) === DEFAULT_PRESET_VERSION;
+}
+
 function getCueFrequency(direction: Direction) {
   if (direction === "left") {
     return 400;
@@ -237,6 +243,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const hasNativeDesktop = isElectronDesktop();
 
   const [patterns, setPatterns] = useState<WeaponPattern[]>(() => {
+    if (!hasCurrentPresetVersion()) {
+      return normalizeWeaponPatterns(defaultPatterns);
+    }
+
     try {
       const saved = readStoredValue(STORAGE_KEY, LEGACY_STORAGE_SUFFIXES.patterns);
       if (saved) {
@@ -253,6 +263,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [selectedWeapon, setSelectedWeapon] = useState<WeaponPattern>(() => {
+    if (!hasCurrentPresetVersion()) {
+      return normalizeWeaponPattern(defaultPatterns[0]);
+    }
+
     try {
       const saved = readStoredValue(SELECTED_STORAGE_KEY, LEGACY_STORAGE_SUFFIXES.selected);
       if (saved) {
@@ -299,6 +313,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(patterns));
+    localStorage.setItem(PRESET_VERSION_STORAGE_KEY, DEFAULT_PRESET_VERSION);
   }, [patterns]);
 
   useEffect(() => {
