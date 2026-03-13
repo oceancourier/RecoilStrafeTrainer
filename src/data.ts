@@ -45,40 +45,30 @@ export type PlaybackState = {
 };
 
 const BUILT_IN_PATTERN_META: Record<string, { game: string; name: string; weapon: string }> = {
-  r301: {
+  ak47: {
     game: "RecoilStrafeTrainer",
-    name: "Carbine Alpha",
-    weapon: "Carbine Alpha",
+    name: "AK47",
+    weapon: "AK47",
   },
   flatline: {
     game: "RecoilStrafeTrainer",
     name: "Rifle Beta",
     weapon: "Rifle Beta",
   },
-  r99: {
-    game: "RecoilStrafeTrainer",
-    name: "SMG Gamma",
-    weapon: "SMG Gamma",
-  },
-  car: {
-    game: "RecoilStrafeTrainer",
-    name: "Compact Delta",
-    weapon: "Compact Delta",
-  },
 };
 
 export const defaultPatterns: WeaponPattern[] = [
   {
-    id: "r301",
+    id: "ak47",
     game: "RecoilStrafeTrainer",
-    name: "Carbine Alpha",
-    weapon: "Carbine Alpha",
-    rpm: 810,
-    magSize: 28,
+    name: "AK47",
+    weapon: "AK47",
+    rpm: 600,
+    magSize: 30,
     turns: [
-      { bullet: 1, dir: "right" },
-      { bullet: 10, dir: "left" },
-      { bullet: 18, dir: "right" },
+      { bullet: 1, dir: "down" },
+      { bullet: 8, dir: "left" },
+      { bullet: 14, dir: "right" },
     ],
   },
   {
@@ -87,37 +77,11 @@ export const defaultPatterns: WeaponPattern[] = [
     name: "Rifle Beta",
     weapon: "Rifle Beta",
     rpm: 600,
-    magSize: 30,
+    magSize: 35,
     turns: [
       { bullet: 1, dir: "left" },
       { bullet: 12, dir: "right" },
-      { bullet: 22, dir: "left" },
-    ],
-  },
-  {
-    id: "r99",
-    game: "RecoilStrafeTrainer",
-    name: "SMG Gamma",
-    weapon: "SMG Gamma",
-    rpm: 1080,
-    magSize: 27,
-    turns: [
-      { bullet: 1, dir: "right" },
-      { bullet: 8, dir: "left" },
-      { bullet: 16, dir: "right" },
-    ],
-  },
-  {
-    id: "car",
-    game: "RecoilStrafeTrainer",
-    name: "Compact Delta",
-    weapon: "Compact Delta",
-    rpm: 930,
-    magSize: 27,
-    turns: [
-      { bullet: 1, dir: "left" },
-      { bullet: 10, dir: "right" },
-      { bullet: 19, dir: "left" },
+      { bullet: 24, dir: "left" },
     ],
   },
 ];
