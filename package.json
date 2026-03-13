@@ -2,6 +2,8 @@
   "name": "recoil-strafe-trainer",
   "private": true,
   "version": "0.0.0",
+  "description": "A desktop recoil and strafe training utility with overlay and global input support.",
+  "author": "oceancourier",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -14,7 +16,9 @@
     "electron": "electron .",
     "pack:win": "npm run build && node ./scripts/package-win.mjs",
     "dist:win": "npm run build && node ./scripts/package-win.mjs",
+    "dist:portable": "npm run build && electron-builder --win portable --publish never",
     "dist:installer": "npm run build && electron-builder --win nsis portable --publish never",
+    "dist:zip": "powershell -NoProfile -Command \"if (Test-Path 'release/RecoilStrafeTrainer-0.0.0-x64-unpacked.zip') { Remove-Item 'release/RecoilStrafeTrainer-0.0.0-x64-unpacked.zip' -Force }; Compress-Archive -Path 'release/win-unpacked/*' -DestinationPath 'release/RecoilStrafeTrainer-0.0.0-x64-unpacked.zip' -Force\"",
     "clean": "node -e \"const fs=require('node:fs'); fs.rmSync('dist',{recursive:true,force:true});\"",
     "lint": "tsc --noEmit",
     "postinstall": "electron-builder install-app-deps"
@@ -60,7 +64,8 @@
       "node_modules/node-gyp-build/**/*"
     ],
     "win": {
-      "artifactName": "${productName}-${version}-${arch}-${target}.${ext}",
+      "signAndEditExecutable": false,
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "target": [
         {
           "target": "nsis",
