@@ -1,13 +1,9 @@
-import { Download, Upload } from "lucide-react";
+import { Clock3, Download, Keyboard, Minimize2, Upload, Volume2 } from "lucide-react";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import { getDesktopApi } from "../desktop";
 import { type MonitorBinding, normalizeWeaponPattern, type WeaponPattern } from "../data";
+import { buildOverlayState, formatMonitorBinding, OVERLAY_CHANNEL, OVERLAY_STATE_STORAGE_KEY } from "../overlay";
 import { useAppStore } from "../store";
-import {
-  buildOverlayState,
-  formatMonitorBinding,
-  OVERLAY_CHANNEL,
-  OVERLAY_STATE_STORAGE_KEY,
-} from "../overlay";
 
 function isValidPattern(value: unknown): value is WeaponPattern {
   if (typeof value !== "object" || value === null) {
@@ -15,7 +11,19 @@ function isValidPattern(value: unknown): value is WeaponPattern {
   }
 
   const pattern = value as Partial<WeaponPattern>;
-  return Boolean(pattern.id && pattern.weapon && pattern.rpm && pattern.magSize && Array.isArray(pattern.turns));
+  return Boolean(
+    typeof pattern.id === "string" &&
+      pattern.id.length > 0 &&
+      typeof pattern.weapon === "string" &&
+      pattern.weapon.length > 0 &&
+      typeof pattern.rpm === "number" &&
+      Number.isFinite(pattern.rpm) &&
+      pattern.rpm >= 0 &&
+      typeof pattern.magSize === "number" &&
+      Number.isFinite(pattern.magSize) &&
+      pattern.magSize >= 0 &&
+      Array.isArray(pattern.turns),
+  );
 }
 
 export function Controls() {
@@ -39,13 +47,11 @@ export function Controls() {
     setOverlayScale,
     overlayOpacity,
     setOverlayOpacity,
-    triggerScopeNotice,
   } = useAppStore();
 
-  const popupRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const [isCapturingBinding, setIsCapturingBinding] = useState(false);
-
+  const desktopApi = getDesktopApi();
   const isMonitoring = playbackState.status !== "idle";
 
   const buildCurrentOverlayState = () =>
@@ -68,13 +74,7 @@ export function Controls() {
       type: "OVERLAY_STATE",
       payload,
     });
-    return payload;
   };
-
-  const getPopupSize = () => ({
-    width: Math.round(760 * overlayScale),
-    height: Math.round(290 * overlayScale),
-  });
 
   useEffect(() => {
     const channel = new BroadcastChannel(OVERLAY_CHANNEL);
@@ -101,17 +101,15 @@ export function Controls() {
   ]);
 
   useEffect(() => {
-    if (!popupRef.current || popupRef.current.closed) {
+    if (!desktopApi?.isElectron) {
       return;
     }
 
-    const { width, height } = getPopupSize();
-    try {
-      popupRef.current.resizeTo(width, height);
-    } catch {
-      // Ignore popup resize failures.
-    }
-  }, [overlayScale]);
+    void desktopApi.updateOverlayAppearance({
+      scale: overlayScale,
+      opacity: overlayOpacity,
+    });
+  }, [desktopApi, overlayOpacity, overlayScale]);
 
   useEffect(() => {
     if (!isCapturingBinding) {
@@ -142,7 +140,9 @@ export function Controls() {
     };
 
     const onMouseDown = (event: MouseEvent) => {
-      if (event.button > 2) return;
+      if (event.button > 2) {
+        return;
+      }
 
       event.preventDefault();
       event.stopPropagation();
@@ -170,51 +170,23 @@ export function Controls() {
     };
   }, [isCapturingBinding, setTriggerBinding]);
 
-  const openPopup = () => {
+  const enterMiniMode = async () => {
+    if (!desktopApi?.isElectron) {
+      return;
+    }
+
     broadcastOverlayState();
-
-    const popupUrl = new URL(window.location.href);
-    popupUrl.searchParams.set("overlay", "1");
-
-    const { width, height } = getPopupSize();
-
-    if (popupRef.current && !popupRef.current.closed) {
-      popupRef.current.focus();
-      try {
-        popupRef.current.resizeTo(width, height);
-      } catch {
-        // Ignore popup resize failures.
-      }
-      return;
-    }
-
-    const popup = window.open(
-      popupUrl.toString(),
-      "ApexStrafePopup",
-      `popup=yes,width=${width},height=${height},resizable=yes,scrollbars=no`,
-    );
-
-    if (!popup) {
-      return;
-    }
-
-    popupRef.current = popup;
-
-    window.setTimeout(() => {
-      broadcastOverlayState();
-      try {
-        popup.resizeTo(width, height);
-      } catch {
-        // Ignore popup resize failures.
-      }
-    }, 250);
+    await desktopApi.enterMiniMode({
+      scale: overlayScale,
+      opacity: overlayOpacity,
+    });
   };
 
   const exportConfig = () => {
     const dataStr = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(patterns, null, 2))}`;
     const downloadAnchorNode = document.createElement("a");
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "apex_strafe_weapons.json");
+    downloadAnchorNode.setAttribute("download", "recoil_strafe_trainer_patterns.json");
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -286,139 +258,125 @@ export function Controls() {
   };
 
   return (
-    <div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px_48px_48px]">
-        <button
-          onClick={togglePlaying}
-          className={`h-12 rounded-xl px-4 text-sm font-semibold transition-colors ${
-            isMonitoring ? "bg-slate-600 text-white hover:bg-slate-500" : "bg-red-600 text-white hover:bg-red-500"
-          }`}
-        >
-          {isMonitoring ? "停止监听" : "开始监听"}
-        </button>
+    <section className="panel-soft flex h-full min-h-0 flex-col p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          <div className="helper-badge">状态: {statusText}</div>
+          <div className="helper-badge">触发键: {formatMonitorBinding(triggerBinding)}</div>
+        </div>
 
-        <button
-          onClick={openPopup}
-          className="h-12 rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10"
-        >
-          打开小窗
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={togglePlaying} className="action-button-primary h-9 min-h-9 px-4">
+            {isMonitoring ? "停止" : "开始"}
+          </button>
 
-        <button
-          onClick={exportConfig}
-          className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white transition-colors hover:bg-white/10"
-          title="导出配置"
-        >
-          <Download className="h-5 w-5" />
-        </button>
+          <button type="button" onClick={enterMiniMode} className="action-button-secondary h-9 min-h-9 px-3.5">
+            <Minimize2 className="h-4 w-4" />
+            小窗
+          </button>
 
-        <label
-          className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white transition-colors hover:bg-white/10"
-          title="导入配置"
-        >
-          <Upload className="h-5 w-5" />
-          <input type="file" accept=".json" className="hidden" onChange={importConfig} />
-        </label>
+          <button type="button" onClick={exportConfig} className="icon-action-button h-9 w-9" title="导出配置">
+            <Download className="h-4 w-4" />
+          </button>
+
+          <label className="icon-action-button h-9 w-9 cursor-pointer" title="导入配置">
+            <Upload className="h-4 w-4" />
+            <input type="file" accept=".json" className="hidden" onChange={importConfig} />
+          </label>
+        </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-          <div className="flex items-start justify-between gap-3">
+      <div className="mt-2.5 grid min-h-0 gap-2.5 xl:grid-cols-[200px_repeat(3,minmax(0,1fr))]">
+        <div className="rounded-[18px] border border-[color:var(--app-border)] bg-[color:var(--app-surface-soft)] p-2.5">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="stat-label">监听键</div>
+            <Keyboard className="h-4 w-4 text-[color:var(--app-text-muted)]" />
+          </div>
+          <div className="text-[34px] font-black leading-none tracking-[-0.05em] text-[color:var(--app-text-strong)]">{formatMonitorBinding(triggerBinding)}</div>
+          <div className="mt-1.5 text-xs leading-5 text-[color:var(--app-text-muted)]">
+            {isCapturingBinding ? "按键或鼠标输入，Esc 取消。" : "支持键盘与鼠标按键。"}
+          </div>
+          <button type="button" onClick={() => setIsCapturingBinding(true)} className="action-button-secondary mt-2.5 h-9 min-h-9 w-full px-3">
+            {isCapturingBinding ? "等待输入..." : "重新设置"}
+          </button>
+        </div>
+
+        <div className="rounded-[18px] border border-[color:var(--app-border)] bg-[color:var(--app-surface-soft)] p-2.5">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="stat-label">触发延迟</div>
+            <Clock3 className="h-4 w-4 text-[color:var(--app-text-muted)]" />
+          </div>
+          <div className="mb-1.5 text-lg font-black tracking-[-0.04em] text-[color:var(--app-accent-strong)]">{waitTime.toFixed(2)}s</div>
+          <input
+            id="waitTimeSeconds"
+            type="range"
+            min="0"
+            max="3"
+            step="0.05"
+            value={waitTime}
+            onChange={(event) => setWaitTime(parseFloat(event.target.value))}
+            className="uniform-slider h-2 w-full cursor-pointer rounded-full"
+          />
+        </div>
+
+        <div className="rounded-[18px] border border-[color:var(--app-border)] bg-[color:var(--app-surface-soft)] p-2.5">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="stat-label">音量</div>
+            <Volume2 className="h-4 w-4 text-[color:var(--app-text-muted)]" />
+          </div>
+          <div className="mb-1.5 text-lg font-black tracking-[-0.04em] text-[color:var(--app-accent-strong)]">{Math.round(volume * 100)}%</div>
+          <input
+            id="volume"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={volume}
+            onChange={(event) => setVolume(parseFloat(event.target.value))}
+            className="uniform-slider h-2 w-full cursor-pointer rounded-full"
+          />
+        </div>
+
+        <div className="rounded-[18px] border border-[color:var(--app-border)] bg-[color:var(--app-surface-soft)] p-2.5">
+          <div className="stat-label">小窗</div>
+
+          <div className="mt-2.5 space-y-2.5">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.35em] text-white/55">监听按键</div>
-              <div className="mt-2 text-2xl font-black tracking-[0.12em] text-white">{formatMonitorBinding(triggerBinding)}</div>
+              <div className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold text-[color:var(--app-text-muted)]">
+                <span>缩放</span>
+                <span>{Math.round(overlayScale * 100)}%</span>
+              </div>
+              <input
+                id="overlayScale"
+                type="range"
+                min="0.65"
+                max="1.25"
+                step="0.05"
+                value={overlayScale}
+                onChange={(event) => setOverlayScale(parseFloat(event.target.value))}
+                className="uniform-slider h-2 w-full cursor-pointer rounded-full"
+              />
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsCapturingBinding(true)}
-              className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10"
-            >
-              {isCapturingBinding ? "等待输入..." : "重新设置"}
-            </button>
-          </div>
-
-          <div className="mt-3 text-xs leading-5 text-white/60">
-            {isCapturingBinding ? "按任意键或鼠标按钮进行绑定，按 Esc 取消。" : triggerScopeNotice}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-          <label htmlFor="waitTimeSeconds" className="text-[11px] uppercase tracking-[0.35em] text-white/55">
-            触发延迟
-          </label>
-          <div className="mt-3 flex items-center gap-3">
-            <input
-              id="waitTimeSeconds"
-              type="range"
-              min="0"
-              max="3"
-              step="0.05"
-              value={waitTime}
-              onChange={(event) => setWaitTime(parseFloat(event.target.value))}
-              className="uniform-slider h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10"
-            />
-            <span className="min-w-[3.25rem] text-right text-sm font-semibold text-amber-300">{waitTime.toFixed(2)}s</span>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-          <label htmlFor="volume" className="text-[11px] uppercase tracking-[0.35em] text-white/55">
-            音量
-          </label>
-          <div className="mt-3 flex items-center gap-3">
-            <input
-              id="volume"
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={volume}
-              onChange={(event) => setVolume(parseFloat(event.target.value))}
-              className="uniform-slider h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10"
-            />
-            <span className="min-w-[3.25rem] text-right text-sm font-semibold text-amber-300">{Math.round(volume * 100)}%</span>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-          <label htmlFor="overlayScale" className="text-[11px] uppercase tracking-[0.35em] text-white/55">
-            小窗缩放
-          </label>
-          <div className="mt-3 flex items-center gap-3">
-            <input
-              id="overlayScale"
-              type="range"
-              min="0.8"
-              max="1.4"
-              step="0.05"
-              value={overlayScale}
-              onChange={(event) => setOverlayScale(parseFloat(event.target.value))}
-              className="uniform-slider h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10"
-            />
-            <span className="min-w-[3.25rem] text-right text-sm font-semibold text-amber-300">{Math.round(overlayScale * 100)}%</span>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-          <label htmlFor="overlayOpacity" className="text-[11px] uppercase tracking-[0.35em] text-white/55">
-            小窗背景透明度
-          </label>
-          <div className="mt-3 flex items-center gap-3">
-            <input
-              id="overlayOpacity"
-              type="range"
-              min="0.55"
-              max="1"
-              step="0.05"
-              value={overlayOpacity}
-              onChange={(event) => setOverlayOpacity(parseFloat(event.target.value))}
-              className="uniform-slider h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10"
-            />
-            <span className="min-w-[3.25rem] text-right text-sm font-semibold text-amber-300">{Math.round(overlayOpacity * 100)}%</span>
+            <div>
+              <div className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold text-[color:var(--app-text-muted)]">
+                <span>透明度</span>
+                <span>{Math.round(overlayOpacity * 100)}%</span>
+              </div>
+              <input
+                id="overlayOpacity"
+                type="range"
+                min="0.55"
+                max="1"
+                step="0.05"
+                value={overlayOpacity}
+                onChange={(event) => setOverlayOpacity(parseFloat(event.target.value))}
+                className="uniform-slider h-2 w-full cursor-pointer rounded-full"
+              />
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

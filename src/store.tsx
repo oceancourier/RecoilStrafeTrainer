@@ -1,15 +1,16 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   defaultPatterns,
-  Direction,
-  MonitorBinding,
+  type Direction,
+  type MonitorBinding,
   normalizeWeaponPattern,
   normalizeWeaponPatterns,
-  PlaybackState,
-  TimelineCue,
-  WeaponPattern,
+  type PlaybackState,
+  type TimelineCue,
+  type WeaponPattern,
 } from "./data";
-import { OVERLAY_CHANNEL, isSameMonitorBinding } from "./overlay";
+import { getDesktopApi, isElectronDesktop } from "./desktop";
+import { isSameMonitorBinding } from "./overlay";
 
 interface AppContextType {
   patterns: WeaponPattern[];
@@ -73,7 +74,9 @@ class AudioEngine {
   }
 
   scheduleCue(time: number, freq: number, duration: number, vol: number) {
-    if (!this.ctx || !this.masterGain) return;
+    if (!this.ctx || !this.masterGain) {
+      return;
+    }
 
     const startTime = Math.max(time, this.ctx.currentTime);
     const oscillator = this.ctx.createOscillator();
@@ -94,7 +97,9 @@ class AudioEngine {
   }
 
   stopAll() {
-    if (!this.ctx || !this.masterGain) return;
+    if (!this.ctx || !this.masterGain) {
+      return;
+    }
 
     this.masterGain.disconnect();
     this.masterGain = this.ctx.createGain();
@@ -108,11 +113,16 @@ class AudioEngine {
 
 const audio = new AudioEngine();
 
-const STORAGE_KEY = "apex_strafe_patterns";
-const SELECTED_STORAGE_KEY = "apex_strafe_selected";
-const SETTINGS_STORAGE_KEY = "apex_strafe_settings";
+const STORAGE_KEY = "recoil_strafe_trainer_patterns";
+const SELECTED_STORAGE_KEY = "recoil_strafe_trainer_selected";
+const SETTINGS_STORAGE_KEY = "recoil_strafe_trainer_settings";
+const LEGACY_STORAGE_SUFFIXES = {
+  patterns: "_strafe_patterns",
+  selected: "_strafe_selected",
+  settings: "_strafe_settings",
+} as const;
 const DEFAULT_TRIGGER_BINDING: MonitorBinding = { kind: "mouse", button: 0 };
-const DEFAULT_OVERLAY_SCALE = 1;
+const DEFAULT_OVERLAY_SCALE = 0.88;
 const DEFAULT_OVERLAY_OPACITY = 0.92;
 const IDLE_PLAYBACK_STATE: PlaybackState = {
   status: "idle",
@@ -131,11 +141,42 @@ function parseMonitorBinding(value: unknown): MonitorBinding | null {
   const candidate = value as Partial<MonitorBinding>;
 
   if (candidate.kind === "mouse" && (candidate.button === 0 || candidate.button === 1 || candidate.button === 2)) {
-    return { kind: "mouse", button: candidate.button };
+    return {
+      kind: "mouse",
+      button: candidate.button,
+    };
   }
 
   if (candidate.kind === "keyboard" && typeof candidate.code === "string" && candidate.code.length > 0) {
-    return { kind: "keyboard", code: candidate.code };
+    return {
+      kind: "keyboard",
+      code: candidate.code,
+    };
+  }
+
+  return null;
+}
+
+function readStoredValue(primaryKey: string, legacySuffix?: string) {
+  const currentValue = localStorage.getItem(primaryKey);
+  if (currentValue) {
+    return currentValue;
+  }
+
+  if (!legacySuffix) {
+    return null;
+  }
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.endsWith(legacySuffix)) {
+      continue;
+    }
+
+    const legacyValue = localStorage.getItem(key);
+    if (legacyValue) {
+      return legacyValue;
+    }
   }
 
   return null;
@@ -143,7 +184,7 @@ function parseMonitorBinding(value: unknown): MonitorBinding | null {
 
 function readStoredSettings() {
   try {
-    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    const raw = readStoredValue(SETTINGS_STORAGE_KEY, LEGACY_STORAGE_SUFFIXES.settings);
     if (!raw) {
       return {
         triggerBinding: DEFAULT_TRIGGER_BINDING,
@@ -181,15 +222,23 @@ function readStoredSettings() {
 }
 
 function getCueFrequency(direction: Direction) {
-  if (direction === "left") return 400;
-  if (direction === "right") return 800;
+  if (direction === "left") {
+    return 400;
+  }
+
+  if (direction === "right") {
+    return 800;
+  }
+
   return 1200;
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const hasNativeDesktop = isElectronDesktop();
+
   const [patterns, setPatterns] = useState<WeaponPattern[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = readStoredValue(STORAGE_KEY, LEGACY_STORAGE_SUFFIXES.patterns);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -205,7 +254,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [selectedWeapon, setSelectedWeapon] = useState<WeaponPattern>(() => {
     try {
-      const saved = localStorage.getItem(SELECTED_STORAGE_KEY);
+      const saved = readStoredValue(SELECTED_STORAGE_KEY, LEGACY_STORAGE_SUFFIXES.selected);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.id) {
@@ -217,7 +266,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const savedPatterns = localStorage.getItem(STORAGE_KEY);
+      const savedPatterns = readStoredValue(STORAGE_KEY, LEGACY_STORAGE_SUFFIXES.patterns);
       if (savedPatterns) {
         const parsedPatterns = JSON.parse(savedPatterns);
         if (Array.isArray(parsedPatterns) && parsedPatterns.length > 0) {
@@ -279,9 +328,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     statusRef.current = playbackState.status;
   }, [playbackState.status]);
 
-  const intervalMs = 60000 / selectedWeapon.rpm;
-  const totalDuration = selectedWeapon.magSize * intervalMs;
+  const safeRpm = Math.max(0, selectedWeapon.rpm);
+  const safeMagSize = Math.max(0, selectedWeapon.magSize);
+  const intervalMs = safeRpm > 0 ? 60000 / safeRpm : 0;
+  const totalDuration = safeMagSize * intervalMs;
   const timeline: TimelineCue[] = selectedWeapon.turns
+    .filter((turn) => turn.bullet >= 1 && turn.bullet <= safeMagSize)
     .map((turn) => ({
       bullet: turn.bullet,
       timeMs: (turn.bullet - 1) * intervalMs,
@@ -359,10 +411,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const channel = new BroadcastChannel(OVERLAY_CHANNEL);
+    const desktopApi = getDesktopApi();
+
+    if (desktopApi?.isElectron) {
+      return desktopApi.onGlobalInput((event) => {
+        const binding = parseMonitorBinding(event.input);
+        if (!binding) {
+          return;
+        }
+
+        if (event.phase === "down") {
+          handleInputDown(binding);
+        } else {
+          handleInputUp(binding);
+        }
+      });
+    }
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat) return;
+      if (event.repeat) {
+        return;
+      }
+
       handleInputDown({ kind: "keyboard", code: event.code });
     };
 
@@ -371,15 +441,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     const onMouseDown = (event: MouseEvent) => {
-      if (event.button > 2) return;
+      if (event.button > 2) {
+        return;
+      }
+
       if (triggerBindingRef.current.kind === "mouse" && triggerBindingRef.current.button === event.button && event.button === 2) {
         event.preventDefault();
       }
+
       handleInputDown({ kind: "mouse", button: event.button as 0 | 1 | 2 });
     };
 
     const onMouseUp = (event: MouseEvent) => {
-      if (event.button > 2) return;
+      if (event.button > 2) {
+        return;
+      }
+
       handleInputUp({ kind: "mouse", button: event.button as 0 | 1 | 2 });
     };
 
@@ -393,23 +470,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       releaseActiveTrigger();
     };
 
-    channel.onmessage = (event) => {
-      if (event.data?.type !== "OVERLAY_INPUT") {
-        return;
-      }
-
-      const input = parseMonitorBinding(event.data.input);
-      if (!input) {
-        return;
-      }
-
-      if (event.data.phase === "down") {
-        handleInputDown(input);
-      } else if (event.data.phase === "up") {
-        handleInputUp(input);
-      }
-    };
-
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("mousedown", onMouseDown);
@@ -418,7 +478,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("blur", onBlur);
 
     return () => {
-      channel.close();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("mousedown", onMouseDown);
@@ -444,7 +503,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           nextState.progressMs += deltaTime;
 
           const triggerDelayMs = waitTime * 1000;
-
           if (nextState.progressMs >= triggerDelayMs) {
             nextState = {
               ...nextState,
@@ -457,13 +515,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (nextState.status === "playing") {
+          if (intervalMs <= 0 || safeMagSize <= 0) {
+            audio.stopAll();
+            scheduledCuesRef.current.clear();
+
+            return {
+              ...IDLE_PLAYBACK_STATE,
+              status: "monitoring",
+            };
+          }
+
           if (previousState.status === "playing") {
             nextState.progressMs += deltaTime;
           }
 
           const currentBullet = Math.floor(nextState.progressMs / intervalMs) + 1;
 
-          if (currentBullet <= selectedWeapon.magSize) {
+          if (currentBullet <= safeMagSize) {
             nextState.currentBullet = currentBullet;
 
             let activeDirection = timeline[0]?.dir ?? null;
@@ -491,9 +559,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ) {
               const timeToPlay = (cue.timeMs - nextState.progressMs) / 1000;
               const playTime = audio.ctx ? audio.ctx.currentTime + Math.max(0, timeToPlay) : 0;
+
               if (audio.ctx) {
                 audio.scheduleCue(playTime, getCueFrequency(cue.dir), 0.15, volume);
               }
+
               scheduledCuesRef.current.add(cueId);
             }
           }
@@ -523,7 +593,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         window.cancelAnimationFrame(requestRef.current);
       }
     };
-  }, [intervalMs, selectedWeapon, totalDuration, volume, waitTime]);
+  }, [intervalMs, safeMagSize, selectedWeapon, totalDuration, volume, waitTime]);
 
   const togglePlaying = () => {
     setPlaybackState((previousState) => {
@@ -544,7 +614,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const triggerScopeNotice = "当前只能监听本页面或小窗获得焦点时的键鼠事件。";
+  const triggerScopeNotice = hasNativeDesktop
+    ? "已启用原生全局监听，可在游戏或其他窗口中直接触发。"
+    : "当前只能监听本页面获得焦点时的键鼠事件。";
 
   let statusText = "未开始";
   if (playbackState.status === "monitoring") {

@@ -1,7 +1,7 @@
 import { type Direction, type MonitorBinding, type PlaybackState, type TimelineCue, type WeaponPattern } from "./data";
 
-export const OVERLAY_CHANNEL = "apex-recoil-overlay";
-export const OVERLAY_STATE_STORAGE_KEY = "apex_recoil_overlay_state";
+export const OVERLAY_CHANNEL = "recoil-strafe-trainer-overlay";
+export const OVERLAY_STATE_STORAGE_KEY = "recoil_strafe_trainer_overlay_state";
 
 export type OverlayAccent = "neutral" | "countdown" | Direction;
 

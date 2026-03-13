@@ -44,12 +44,35 @@ export type PlaybackState = {
   progressMs: number;
 };
 
+const BUILT_IN_PATTERN_META: Record<string, { game: string; name: string; weapon: string }> = {
+  r301: {
+    game: "RecoilStrafeTrainer",
+    name: "Carbine Alpha",
+    weapon: "Carbine Alpha",
+  },
+  flatline: {
+    game: "RecoilStrafeTrainer",
+    name: "Rifle Beta",
+    weapon: "Rifle Beta",
+  },
+  r99: {
+    game: "RecoilStrafeTrainer",
+    name: "SMG Gamma",
+    weapon: "SMG Gamma",
+  },
+  car: {
+    game: "RecoilStrafeTrainer",
+    name: "Compact Delta",
+    weapon: "Compact Delta",
+  },
+};
+
 export const defaultPatterns: WeaponPattern[] = [
   {
     id: "r301",
-    game: "Apex Legends",
-    name: "R-301",
-    weapon: "R-301",
+    game: "RecoilStrafeTrainer",
+    name: "Carbine Alpha",
+    weapon: "Carbine Alpha",
     rpm: 810,
     magSize: 28,
     turns: [
@@ -60,9 +83,9 @@ export const defaultPatterns: WeaponPattern[] = [
   },
   {
     id: "flatline",
-    game: "Apex Legends",
-    name: "Flatline",
-    weapon: "Flatline",
+    game: "RecoilStrafeTrainer",
+    name: "Rifle Beta",
+    weapon: "Rifle Beta",
     rpm: 600,
     magSize: 30,
     turns: [
@@ -73,9 +96,9 @@ export const defaultPatterns: WeaponPattern[] = [
   },
   {
     id: "r99",
-    game: "Apex Legends",
-    name: "R-99",
-    weapon: "R-99",
+    game: "RecoilStrafeTrainer",
+    name: "SMG Gamma",
+    weapon: "SMG Gamma",
     rpm: 1080,
     magSize: 27,
     turns: [
@@ -86,9 +109,9 @@ export const defaultPatterns: WeaponPattern[] = [
   },
   {
     id: "car",
-    game: "Apex Legends",
-    name: "C.A.R.",
-    weapon: "C.A.R.",
+    game: "RecoilStrafeTrainer",
+    name: "Compact Delta",
+    weapon: "Compact Delta",
     rpm: 930,
     magSize: 27,
     turns: [
@@ -96,16 +119,95 @@ export const defaultPatterns: WeaponPattern[] = [
       { bullet: 10, dir: "right" },
       { bullet: 19, dir: "left" },
     ],
-  }
+  },
 ];
 
-export function normalizeWeaponPattern(pattern: WeaponPattern): WeaponPattern {
+function isDirection(value: unknown): value is Direction {
+  return value === "left" || value === "right" || value === "down";
+}
+
+function toNonNegativeInteger(value: unknown, fallback = 0) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.floor(value));
+}
+
+function sanitizeTurn(turn: WeaponPattern["turns"][number], magSize: number): WeaponPattern["turns"][number] {
+  const bullet = Math.max(1, toNonNegativeInteger(turn.bullet, 1));
+
   return {
-    ...pattern,
-    name: pattern.name ?? pattern.weapon,
+    ...turn,
+    bullet: magSize > 0 ? Math.min(bullet, magSize) : bullet,
+    dir: isDirection(turn.dir) ? turn.dir : "left",
+    intensity:
+      typeof turn.intensity === "number" && Number.isFinite(turn.intensity) ? Math.max(0, turn.intensity) : undefined,
+    noteType: typeof turn.noteType === "string" ? turn.noteType : undefined,
+    label: typeof turn.label === "string" ? turn.label : undefined,
   };
 }
 
-export function normalizeWeaponPatterns(patterns: WeaponPattern[]): WeaponPattern[] {
+export function sanitizeWeaponPattern(pattern: WeaponPattern): WeaponPattern {
+  const rpm = toNonNegativeInteger(pattern.rpm, 0);
+  const magSize = toNonNegativeInteger(pattern.magSize, 0);
+  const turns = Array.isArray(pattern.turns)
+    ? pattern.turns.map((turn) => sanitizeTurn(turn, magSize)).sort((a, b) => a.bullet - b.bullet)
+    : [];
+
+  return {
+    ...pattern,
+    rpm,
+    magSize,
+    turns,
+  };
+}
+
+export function createCustomWeaponPattern(existingPatterns: WeaponPattern[]) {
+  let suffix = existingPatterns.length + 1;
+  let nextId = `custom-${suffix}`;
+
+  while (existingPatterns.some((pattern) => pattern.id === nextId)) {
+    suffix += 1;
+    nextId = `custom-${suffix}`;
+  }
+
+  const name = `Custom Weapon ${suffix}`;
+
+  return normalizeWeaponPattern({
+    id: nextId,
+    game: "RecoilStrafeTrainer",
+    name,
+    weapon: name,
+    rpm: 600,
+    magSize: 30,
+    turns: [
+      { bullet: 1, dir: "left" },
+      { bullet: 11, dir: "right" },
+    ],
+  });
+}
+
+export function normalizeWeaponPattern(pattern: WeaponPattern): WeaponPattern {
+  const sanitizedPattern = sanitizeWeaponPattern(pattern);
+  const builtInMeta = BUILT_IN_PATTERN_META[sanitizedPattern.id];
+
+  if (builtInMeta) {
+    return {
+      ...sanitizedPattern,
+      game: builtInMeta.game,
+      name: builtInMeta.name,
+      weapon: builtInMeta.weapon,
+    };
+  }
+
+  return {
+    ...sanitizedPattern,
+    name: sanitizedPattern.name ?? sanitizedPattern.weapon,
+    game: sanitizedPattern.game || "RecoilStrafeTrainer",
+  };
+}
+
+export function normalizeWeaponPatterns(patterns: WeaponPattern[]) {
   return patterns.map(normalizeWeaponPattern);
 }

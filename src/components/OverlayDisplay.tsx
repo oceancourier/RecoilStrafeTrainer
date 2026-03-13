@@ -4,123 +4,213 @@ import { cn } from "../utils";
 type OverlayDisplayProps = {
   state: OverlayStatePayload;
   className?: string;
+  mode?: "embedded" | "mini";
+  compactMode?: "normal" | "compact" | "tight";
 };
 
 function getAccentClasses(accent: OverlayAccent) {
   if (accent === "left") {
     return {
-      glow: "from-blue-500/25 via-blue-400/10 to-transparent",
-      text: "text-blue-100",
-      badge: "border-blue-300/30 bg-blue-400/10 text-blue-50",
-      marker: "bg-blue-300",
+      glow: "from-blue-500/20 via-blue-400/8 to-transparent",
+      text: "text-[color:var(--accent-left)]",
+      badge: "border-[color:var(--accent-left-border)] bg-[color:var(--accent-left-soft)] text-[color:var(--accent-left)]",
+      marker: "bg-[color:var(--accent-left)]",
     };
   }
 
   if (accent === "right") {
     return {
-      glow: "from-rose-500/25 via-rose-400/10 to-transparent",
-      text: "text-rose-100",
-      badge: "border-rose-300/30 bg-rose-400/10 text-rose-50",
-      marker: "bg-rose-300",
+      glow: "from-rose-500/20 via-rose-400/8 to-transparent",
+      text: "text-[color:var(--accent-right)]",
+      badge: "border-[color:var(--accent-right-border)] bg-[color:var(--accent-right-soft)] text-[color:var(--accent-right)]",
+      marker: "bg-[color:var(--accent-right)]",
     };
   }
 
   if (accent === "down") {
     return {
-      glow: "from-violet-500/25 via-violet-400/10 to-transparent",
-      text: "text-violet-100",
-      badge: "border-violet-300/30 bg-violet-400/10 text-violet-50",
-      marker: "bg-violet-300",
+      glow: "from-violet-500/18 via-violet-400/8 to-transparent",
+      text: "text-[color:var(--accent-down)]",
+      badge: "border-[color:var(--accent-down-border)] bg-[color:var(--accent-down-soft)] text-[color:var(--accent-down)]",
+      marker: "bg-[color:var(--accent-down)]",
     };
   }
 
   if (accent === "countdown") {
     return {
-      glow: "from-amber-500/25 via-amber-400/10 to-transparent",
-      text: "text-amber-50",
-      badge: "border-amber-300/30 bg-amber-400/10 text-amber-50",
-      marker: "bg-amber-300",
+      glow: "from-amber-500/22 via-amber-400/8 to-transparent",
+      text: "text-[color:var(--accent-countdown)]",
+      badge: "border-[color:var(--accent-countdown-border)] bg-[color:var(--accent-countdown-soft)] text-[color:var(--accent-countdown)]",
+      marker: "bg-[color:var(--accent-countdown)]",
     };
   }
 
   return {
-    glow: "from-amber-500/20 via-transparent to-transparent",
-    text: "text-white",
-    badge: "border-white/15 bg-white/[0.07] text-white/90",
-    marker: "bg-white",
+    glow: "from-amber-500/12 via-transparent to-transparent",
+    text: "text-[color:var(--app-text-strong)]",
+    badge: "border-[color:var(--overlay-border)] bg-[color:var(--app-surface-soft)] text-[color:var(--app-text)]",
+    marker: "bg-[color:var(--app-text-strong)]",
   };
 }
 
 function getSegmentClasses(dir: OverlayStatePayload["segments"][number]["dir"]) {
-  if (dir === "left") return "from-blue-500 to-blue-400 text-blue-50";
-  if (dir === "right") return "from-rose-500 to-rose-400 text-rose-50";
-  if (dir === "down") return "from-violet-500 to-violet-400 text-violet-50";
-  return "from-white/[0.08] to-white/[0.05] text-white/40";
+  if (dir === "left") return "from-blue-500 to-sky-400 text-blue-50";
+  if (dir === "right") return "from-rose-500 to-pink-400 text-rose-50";
+  if (dir === "down") return "from-violet-500 to-fuchsia-400 text-violet-50";
+  return "from-white/20 to-white/10 text-white/45";
 }
 
-export function OverlayDisplay({ state, className }: OverlayDisplayProps) {
+export function OverlayDisplay({ state, className, mode = "embedded", compactMode = "normal" }: OverlayDisplayProps) {
   const accent = getAccentClasses(state.accent);
   const markerLeft = `${Math.min(99, Math.max(1, state.progressPct || 0))}%`;
-  const largeTextClass = state.displayText.length > 4 ? "text-[42px] md:text-[56px]" : "text-[74px] md:text-[110px]";
+  const isMiniMode = mode === "mini";
+  const isCompact = isMiniMode && compactMode !== "normal";
+  const isTight = isMiniMode && compactMode === "tight";
+
+  const largeTextClass = isMiniMode
+    ? isTight
+      ? state.displayText.length > 4
+        ? "text-[14px]"
+        : "text-[24px]"
+      : isCompact
+        ? state.displayText.length > 4
+          ? "text-[16px]"
+          : "text-[28px]"
+        : state.displayText.length > 4
+          ? "text-[18px] md:text-[22px]"
+          : "text-[32px] md:text-[40px]"
+    : state.displayText.length > 4
+      ? "text-[38px] md:text-[50px]"
+      : "text-[68px] md:text-[96px]";
 
   return (
     <section
       className={cn(
-        "relative overflow-hidden rounded-[28px] border border-white/10 bg-[#11161f] text-white shadow-[0_22px_80px_rgba(0,0,0,0.45)]",
+        "relative overflow-hidden text-[color:var(--app-text)]",
+        isMiniMode
+          ? "h-full rounded-[22px] border border-[color:var(--overlay-border)] bg-[color:var(--overlay-surface)]"
+          : "rounded-[28px] border border-[color:var(--overlay-border)] bg-[color:var(--overlay-surface-strong)] shadow-[var(--app-shadow)]",
         className,
       )}
     >
+      <div className={cn("absolute inset-0 bg-gradient-to-r opacity-100", accent.glow)} style={{ opacity: state.overlayOpacity }} />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_40%),linear-gradient(135deg,rgba(244,181,63,0.1),transparent_35%),linear-gradient(180deg,var(--overlay-surface-strong)_0%,var(--overlay-surface)_100%)]" />
+      {!isMiniMode ? <div className="absolute inset-0 border border-white/5" /> : null}
+
       <div
         className={cn(
-          "absolute inset-0 bg-gradient-to-r opacity-100",
-          accent.glow,
+          "relative flex h-full flex-col",
+          isMiniMode
+            ? isTight
+              ? "min-h-[74px] px-2 py-1.5"
+              : isCompact
+                ? "min-h-[80px] px-2 py-1.5"
+                : "min-h-[84px] px-2.5 py-2 md:min-h-[92px]"
+            : "min-h-[200px] px-4 py-4 md:min-h-[230px] md:px-6 md:py-5",
         )}
-        style={{ opacity: state.overlayOpacity }}
-      />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_40%),linear-gradient(135deg,rgba(255,191,36,0.12),transparent_32%),linear-gradient(180deg,#1a202b_0%,#0c1016_100%)]" />
-      <div className="absolute inset-0 border border-white/5" />
-
-      <div className="relative flex h-full min-h-[200px] flex-col px-4 py-4 md:min-h-[240px] md:px-6 md:py-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className={cn("inline-flex min-w-[128px] items-center gap-2 rounded-2xl border px-3 py-2 backdrop-blur-sm", accent.badge)}>
-            <span className="h-2 w-2 rounded-full bg-current/80" />
-            <span className="truncate text-sm font-semibold tracking-wide">{state.weaponName}</span>
+      >
+        <div className={cn("flex justify-between", isMiniMode ? (isTight ? "items-center gap-1.5" : "items-center gap-2") : "items-start gap-3")}>
+          <div
+            className={cn(
+              "inline-flex min-w-0 items-center gap-1.5 rounded-2xl border backdrop-blur-sm",
+              isMiniMode
+                ? isTight
+                  ? "max-w-[34%] px-2 py-0.5"
+                  : isCompact
+                    ? "max-w-[36%] px-2 py-0.5"
+                    : "max-w-[38%] px-2.5 py-1"
+                : "min-w-[128px] px-3 py-2",
+              accent.badge,
+            )}
+          >
+            <span className={cn("shrink-0 rounded-full bg-current/80", isMiniMode ? "h-2 w-2" : "h-2 w-2")} />
+            <span className={cn("truncate font-semibold tracking-wide", isMiniMode ? (isTight ? "text-[9px]" : "text-[10px]") : "text-sm")}>
+              {state.weaponName}
+            </span>
           </div>
 
-          <div className="flex-1 px-2 pt-1 text-center">
-            <div className="text-xs font-semibold tracking-[0.35em] text-white/60">{state.statusText}</div>
+          <div className={cn("min-w-0 flex-1 text-center", isMiniMode ? "px-1 pt-0" : "px-2 pt-1")}>
+            <div
+              className={cn(
+                "truncate font-semibold text-[color:var(--app-text-muted)]",
+                isMiniMode ? (isTight ? "text-[8px] tracking-[0.16em]" : "text-[9px] tracking-[0.24em]") : "text-xs tracking-[0.3em]",
+              )}
+            >
+              {state.statusText}
+            </div>
+            {isMiniMode && !isTight ? (
+              <div className={cn("mt-0.5 truncate font-medium text-[color:var(--app-text-muted)]", isCompact ? "text-[9px]" : "text-[10px]")}>
+                {state.helperText}
+              </div>
+            ) : null}
           </div>
 
-          <div className="inline-flex min-w-[108px] items-center justify-center rounded-2xl border border-white/12 bg-black/20 px-3 py-2 text-sm font-semibold tracking-[0.2em] text-white/90 backdrop-blur-sm">
+          <div
+            className={cn(
+              "inline-flex shrink-0 items-center justify-center rounded-2xl border border-[color:var(--overlay-border)] bg-black/10 font-semibold tracking-[0.18em] text-[color:var(--app-text-strong)] backdrop-blur-sm",
+              isMiniMode
+                ? isTight
+                  ? "px-2 py-0.5 text-[9px]"
+                  : isCompact
+                    ? "px-2 py-0.5 text-[9px]"
+                    : "min-w-[56px] px-2.5 py-1 text-[10px]"
+                : "min-w-[108px] px-3 py-2 text-sm",
+            )}
+          >
             {state.triggerLabel}
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-2 pt-3 text-center">
-          <div className="text-[11px] font-medium uppercase tracking-[0.35em] text-white/45">{state.helperText}</div>
-          <div className={cn("font-black leading-none tracking-[-0.08em] drop-shadow-[0_0_22px_rgba(255,255,255,0.18)]", largeTextClass, accent.text)}>
+        <div className={cn("flex flex-1 flex-col items-center justify-center text-center", isMiniMode ? (isTight ? "gap-0 px-1 pt-0.5" : "gap-0 px-1 pt-1") : "gap-2 px-2 pt-2")}>
+          {!isMiniMode ? (
+            <div className="text-[11px] font-medium uppercase tracking-[0.35em] text-[color:var(--app-text-muted)]">{state.helperText}</div>
+          ) : null}
+          <div
+            className={cn(
+              "font-black leading-none tracking-[-0.08em] drop-shadow-[0_0_22px_rgba(255,255,255,0.14)]",
+              largeTextClass,
+              accent.text,
+            )}
+          >
             {state.displayText}
           </div>
         </div>
 
-        <div className="relative pt-1">
-          <div className="pointer-events-none absolute -top-3 z-20 -translate-x-1/2" style={{ left: markerLeft }}>
-            <div className="mx-auto h-0 w-0 border-x-[7px] border-x-transparent border-t-[10px] border-t-white/95 drop-shadow-[0_0_8px_rgba(255,255,255,0.55)]" />
-            <div className={cn("mx-auto mt-1 h-5 w-[2px] rounded-full shadow-[0_0_12px_rgba(255,255,255,0.8)]", accent.marker)} />
+        <div className={cn("relative", isMiniMode ? "pt-0.5" : "pt-1")}>
+          <div className="pointer-events-none absolute z-20 -translate-x-1/2" style={{ left: markerLeft, top: isMiniMode ? "-4px" : "-12px" }}>
+            <div
+              className={cn(
+                "mx-auto h-0 w-0 border-x-transparent border-t-[color:var(--app-text-strong)] drop-shadow-[0_0_8px_rgba(255,255,255,0.35)]",
+                isMiniMode ? (isTight ? "border-x-[2px] border-t-[4px]" : "border-x-[3px] border-t-[5px]") : "border-x-[7px] border-t-[10px]",
+              )}
+            />
+            <div
+              className={cn(
+                "mx-auto rounded-full shadow-[0_0_12px_rgba(255,255,255,0.4)]",
+                accent.marker,
+                isMiniMode ? (isTight ? "mt-0.5 h-1.5 w-[2px]" : "mt-0.5 h-2 w-[2px]") : "mt-1 h-5 w-[2px]",
+              )}
+            />
           </div>
 
-          <div className="rounded-full border border-white/10 bg-black/35 px-[3px] py-[3px] backdrop-blur-sm">
-            <div className="flex h-5 overflow-hidden rounded-full">
+          <div
+            className={cn(
+              "rounded-full bg-black/12 px-[3px] py-[3px] backdrop-blur-sm",
+              isMiniMode ? "border-0" : "border border-[color:var(--overlay-border)]",
+            )}
+          >
+            <div className={cn("flex w-full overflow-hidden rounded-full", isMiniMode ? (isTight ? "h-2" : "h-2.5") : "h-5")}>
               {state.segments.map((segment, index) => (
                 <div
                   key={`${segment.dir}-${index}`}
                   className={cn(
-                    "relative flex h-full items-center justify-center bg-gradient-to-r text-[10px] font-bold tracking-[0.15em] shadow-[inset_-1px_0_0_rgba(0,0,0,0.18)]",
+                    "relative flex h-full min-w-0 items-center justify-center bg-gradient-to-r font-bold tracking-[0.12em] shadow-[inset_-1px_0_0_rgba(0,0,0,0.15)]",
+                    isMiniMode ? (isTight ? "text-[0px]" : isCompact ? "text-[5px]" : "text-[6px]") : "text-[10px]",
                     getSegmentClasses(segment.dir),
                   )}
                   style={{ width: `${segment.widthPct}%` }}
                 >
-                  <span className="drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]">{segment.label}</span>
+                  {!isTight ? <span className="truncate px-0.5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]">{segment.label}</span> : null}
                 </div>
               ))}
             </div>

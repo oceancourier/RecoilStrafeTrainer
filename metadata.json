@@ -1,5 +1,5 @@
 {
-  "name": "Apex Legends Recoil Strafe Trainer Clone",
-  "description": "A static clone of the Apex Legends Recoil Strafe Trainer website.",
+  "name": "RecoilStrafeTrainer",
+  "description": "A desktop recoil and strafe training utility with overlay and global input support.",
   "requestFramePermissions": []
 }
